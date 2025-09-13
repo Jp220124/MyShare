@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="roomId"></div>
+    <div id="messages"></div>
+    
+    <script>
+        const roomId = 'TEST123';
+        const peerId = Math.random().toString(36).substring(7);
+        const wsUrl = 'wss://webshare-worker.priyanshukumarmaurya786.workers.dev';
+        
+        const log = (msg) => {
+            console.log(msg);
+            document.getElementById('messages').innerHTML += `<p>${new Date().toLocaleTimeString()}: ${msg}</p>`;
+        };
+        
+        log(`Connecting to ${wsUrl}/room/${roomId}?peerId=${peerId}`);
+        
+        const ws = new WebSocket(`${wsUrl}/room/${roomId}?peerId=${peerId}`);
+        
+        ws.onopen = () => {
+            document.getElementById('status').innerHTML = '✅ Connected!';
+            log('WebSocket connected successfully');
+            
+            // Send join message
+            const joinMsg = {
+                type: 'join',
+                roomId: roomId,
+                peerId: peerId
+            };
+            ws.send(JSON.stringify(joinMsg));
+            log('Sent join message');
+        };
+        
+        ws.onmessage = (event) => {
+            log(`Received: ${event.data}`);
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'peers') {
+                    log(`Peers in room: ${data.peers.length}`);
+                }
+            } catch (e) {
+                log(`Raw message: ${event.data}`);
+            }
+        };
+        
+        ws.onerror = (error) => {
+            document.getElementById('status').innerHTML = '❌ Error!';
+            log(`Error: ${error}`);
+        };
+        
+        ws.onclose = (event) => {
+            document.getElementById('status').innerHTML = '❌ Disconnected!';
+            log(`Closed: ${event.code} - ${event.reason}`);
+        };
+        
+        // Send test message every 5 seconds
+        setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'get-peers' }));
+                log('Requesting peer list...');
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
