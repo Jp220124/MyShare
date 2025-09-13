@@ -14,21 +14,55 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const downloadFile = (fileData: string, fileName: string) => {
+  const downloadFile = async (fileData: string, fileName: string) => {
     try {
-      // Validate data URL format
-      if (!fileData || !fileData.startsWith('data:')) {
-        console.error('Invalid file data format');
-        alert('File download failed: Invalid data format');
+      if (!fileData) {
+        console.error('No file data available');
+        alert('File download failed: No data available');
         return;
       }
-      
-      const link = document.createElement('a');
-      link.href = fileData;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+
+      // Check if it's a data URL
+      if (fileData.startsWith('data:')) {
+        // Direct download for data URLs
+        const link = document.createElement('a');
+        link.href = fileData;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else if (fileData.startsWith('http://') || fileData.startsWith('https://')) {
+        // External URL - fetch and download
+        console.log(`Downloading from external URL: ${fileData}`);
+        
+        try {
+          // For external services, we need to fetch the file first
+          const response = await fetch(fileData);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Clean up
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        } catch (fetchError) {
+          console.error('Fetch failed, trying direct download:', fetchError);
+          // If fetch fails (CORS), try opening in new tab
+          window.open(fileData, '_blank');
+        }
+      } else {
+        console.error('Unknown file data format:', fileData);
+        alert('File download failed: Unknown data format');
+      }
     } catch (error) {
       console.error('Download failed:', error);
       alert('File download failed. Please try again.');
@@ -76,6 +110,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                   <p className="text-sm font-medium text-gray-900 truncate">{message.fileName}</p>
                   <p className="text-xs text-gray-500">
                     {message.fileSize && formatFileSize(message.fileSize)}
+                    {message.content && ` • ${message.content}`}
                   </p>
                 </div>
                 {message.fileData ? (

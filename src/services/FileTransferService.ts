@@ -33,13 +33,16 @@ export class FileTransferService {
     try {
       const response = await fetch(this.ZEROX_UPLOAD_URL, {
         method: 'POST',
-        body: formData
+        body: formData,
+        mode: 'cors'
       });
       
       if (!response.ok) throw new Error('Upload failed');
       
       const url = await response.text();
-      return url.trim(); // Returns the download URL
+      // Ensure HTTPS for better compatibility
+      const httpsUrl = url.trim().replace('http://', 'https://');
+      return httpsUrl;
     } catch (error) {
       console.error('0x0.st upload failed:', error);
       throw error;

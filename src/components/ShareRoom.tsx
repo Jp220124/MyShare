@@ -147,7 +147,7 @@ const ShareRoom: React.FC = () => {
           // Update local message to show success
           setMessages(prev => prev.map(m => 
             m.id === message.id 
-              ? { ...m, content: `Sent via peer-to-peer` }
+              ? { ...m, content: `✓ Sent via peer-to-peer` }
               : m
           ));
         } else {
@@ -168,10 +168,10 @@ const ShareRoom: React.FC = () => {
             message: fileMessage
           });
           
-          // Update local message with the file data
+          // Update local message with the file data and method info
           setMessages(prev => prev.map(m => 
             m.id === message.id 
-              ? { ...m, fileData: result.url, content: undefined }
+              ? { ...m, fileData: result.url, content: `✓ Sent via ${result.method}` }
               : m
           ));
         }
