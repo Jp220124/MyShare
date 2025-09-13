@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test V2 Worker</title>
+</head>
+<body>
+    <h1>Worker V2 Test - Room: TESTROOM</h1>
+    <button onclick="connect()">Connect New Device</button>
+    <button onclick="sendMessage()">Send Test Message</button>
+    <div id="connections"></div>
+    <div id="log"></div>
+    
+    <script>
+        let connections = [];
+        let deviceCount = 0;
+        
+        function log(msg) {
+            document.getElementById('log').innerHTML += `<p>${new Date().toLocaleTimeString()}: ${msg}</p>`;
+        }
+        
+        function connect() {
+            deviceCount++;
+            const peerId = `device${deviceCount}`;
+            const ws = new WebSocket(`wss://webshare-v2.priyanshukumarmaurya786.workers.dev/room/TESTROOM?peerId=${peerId}`);
+            
+            ws.onopen = () => {
+                log(`Device ${deviceCount} connected`);
+                ws.send(JSON.stringify({ type: 'join', roomId: 'TESTROOM', peerId }));
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                log(`Device ${peerId} received: ${data.type} - Peers: ${data.peers ? data.peers.length : 'N/A'}`);
+                if (data.type === 'message') {
+                    log(`Message content: ${JSON.stringify(data.message)}`);
+                }
+            };
+            
+            connections.push({ ws, peerId });
+            updateConnectionList();
+        }
+        
+        function sendMessage() {
+            if (connections.length > 0) {
+                const ws = connections[0].ws;
+                ws.send(JSON.stringify({
+                    type: 'message',
+                    message: {
+                        type: 'text',
+                        content: 'Test message from device 1',
+                        sender: connections[0].peerId
+                    }
+                }));
+                log('Sent test message from device 1');
+            }
+        }
+        
+        function updateConnectionList() {
+            document.getElementById('connections').innerHTML = 
+                `<h3>Active Connections: ${connections.length}</h3>`;
+        }
+    </script>
+</body>
+</html>
