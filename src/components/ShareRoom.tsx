@@ -89,59 +89,51 @@ const ShareRoom: React.FC = () => {
   const handleSendFile = async (file: File) => {
     if (!wsRef.current) return;
 
-    // Check file size - if over 100KB, use chunking
-    const MAX_DIRECT_SIZE = 100 * 1024; // 100KB
+    // Always use chunking for consistency
+    const message: Message = {
+      id: Date.now().toString(),
+      type: file.type.startsWith('image/') ? 'image' : 'file',
+      sender: 'You',
+      fileName: file.name,
+      fileSize: file.size,
+      content: 'Uploading file...',
+      timestamp: Date.now()
+    };
+    setMessages(prev => [...prev, message]);
     
-    if (file.size > MAX_DIRECT_SIZE) {
-      // Large file - use chunked transfer
-      const message: Message = {
-        id: Date.now().toString(),
-        type: 'file',
-        sender: 'You',
-        fileName: file.name,
-        fileSize: file.size,
-        content: 'Uploading large file...',
-        timestamp: Date.now()
-      };
-      setMessages(prev => [...prev, message]);
+    try {
+      await ChunkedFileService.sendFileInChunks(
+        wsRef.current,
+        file,
+        peerIdRef.current,
+        (progress) => {
+          console.log(`Upload progress: ${progress.toFixed(1)}%`);
+          // Update progress in UI
+          setMessages(prev => prev.map(m => 
+            m.id === message.id 
+              ? { ...m, content: `Uploading... ${progress.toFixed(0)}%` }
+              : m
+          ));
+        }
+      );
       
-      try {
-        await ChunkedFileService.sendFileInChunks(
-          wsRef.current,
-          file,
-          peerIdRef.current,
-          (progress) => {
-            console.log(`Upload progress: ${progress.toFixed(1)}%`);
-          }
-        );
-        
-        // Update message to show completion
-        setMessages(prev => prev.map(m => 
-          m.id === message.id 
-            ? { ...m, content: 'File sent successfully!' }
-            : m
-        ));
-      } catch (error) {
-        console.error('Failed to send large file:', error);
-        setMessages(prev => prev.map(m => 
-          m.id === message.id 
-            ? { ...m, content: 'Failed to send file' }
-            : m
-        ));
-      }
-    } else {
-      // Small file - send directly
+      // Read file data for local display
       const reader = new FileReader();
       reader.onload = (e) => {
-        if (!wsRef.current) return;
-        const message = wsRef.current.sendFileMessage(
-          file.name,
-          file.size,
-          e.target?.result as string
-        );
-        setMessages(prev => [...prev, { ...message, sender: 'You' }]);
+        setMessages(prev => prev.map(m => 
+          m.id === message.id 
+            ? { ...m, fileData: e.target?.result as string, content: undefined }
+            : m
+        ));
       };
       reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Failed to send file:', error);
+      setMessages(prev => prev.map(m => 
+        m.id === message.id 
+          ? { ...m, content: 'Failed to send file' }
+          : m
+      ));
     }
   };
 
