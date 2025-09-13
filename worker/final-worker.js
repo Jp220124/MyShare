@@ -23,7 +23,7 @@ export default {
 
     // Parse room and peer info
     const pathParts = url.pathname.split('/');
-    const roomId = pathParts[2] || 'default';
+    const roomId = (pathParts[2] || 'default').toUpperCase(); // Normalize room ID to uppercase
     const peerId = url.searchParams.get('peerId') || Math.random().toString(36).substring(7);
     
     console.log(`New connection: Room ${roomId}, Peer ${peerId}`);
@@ -80,7 +80,8 @@ export class RoomDurableObject {
     };
     
     this.sessions.push(session);
-    console.log(`Session added. Total: ${this.sessions.length}`);
+    console.log(`Session added for peer ${peerId}. Total sessions: ${this.sessions.length}`);
+    console.log(`Current peers in room:`, this.sessions.map(s => s.peerId));
     
     // Send welcome
     ws.send(JSON.stringify({
