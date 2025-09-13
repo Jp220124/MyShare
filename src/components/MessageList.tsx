@@ -15,6 +15,9 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   };
 
   const downloadFile = async (fileData: string, fileName: string) => {
+    console.log('[Download] Starting download for:', fileName);
+    console.log('[Download] Data type:', fileData.substring(0, 50));
+    
     try {
       if (!fileData) {
         console.error('No file data available');
@@ -24,13 +27,19 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 
       // Check if it's a data URL
       if (fileData.startsWith('data:')) {
+        console.log('[Download] Downloading data URL, length:', fileData.length);
         // Direct download for data URLs
         const link = document.createElement('a');
         link.href = fileData;
-        link.download = fileName;
+        link.download = fileName || 'download';
+        link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        // Give browser time to process the download
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        console.log('[Download] Download initiated for:', fileName);
       } else if (fileData.startsWith('http://') || fileData.startsWith('https://')) {
         // External URL - fetch and download
         console.log(`Downloading from external URL: ${fileData}`);
@@ -114,12 +123,21 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                   </p>
                 </div>
                 {message.fileData ? (
-                  <button
-                    onClick={() => downloadFile(message.fileData as string, message.fileName!)}
-                    className="flex-shrink-0 bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700"
-                  >
-                    Download
-                  </button>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => downloadFile(message.fileData as string, message.fileName!)}
+                      className="flex-shrink-0 bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700"
+                    >
+                      Download
+                    </button>
+                    <a
+                      href={message.fileData as string}
+                      download={message.fileName}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 text-center"
+                    >
+                      Direct Link
+                    </a>
+                  </div>
                 ) : (
                   <span className="text-xs text-gray-500">Processing...</span>
                 )}

@@ -60,6 +60,7 @@ const ShareRoom: React.FC = () => {
 
     // Set up event handlers
     const unsubscribeMessage = ws.onMessage((message) => {
+      console.log('[ShareRoom] Received message:', message);
       if (message.sender !== peerIdRef.current) {
         setMessages(prev => [...prev, message]);
       }
