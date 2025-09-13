@@ -1,0 +1,16 @@
+name = "webshare-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+[durable_objects]
+bindings = [
+  { name = "ROOM", class_name = "Room" }
+]
+
+[env.production]
+name = "webshare-worker"
+route = "webshare-worker.*.workers.dev/*"

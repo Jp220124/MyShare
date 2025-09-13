@@ -1,0 +1,13 @@
+{
+  "name": "webshare-worker",
+  "version": "1.0.0",
+  "description": "WebSocket server for WebShare app",
+  "main": "worker.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
