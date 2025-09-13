@@ -17,7 +17,7 @@ export class SimpleWebSocketService {
     this.roomId = roomId;
     this.peerId = peerId;
     // Use the deployed Worker URL
-    this.wsUrl = import.meta.env.VITE_WS_URL || 'wss://webshare-worker.priyanshukumarmaurya786.workers.dev';
+    this.wsUrl = import.meta.env.VITE_WS_URL || 'wss://webshare-v2.priyanshukumarmaurya786.workers.dev';
   }
 
   connect() {
