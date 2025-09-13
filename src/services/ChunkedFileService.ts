@@ -73,25 +73,33 @@ export class ChunkedFileService {
     for (let i = 0; i < metadata.totalChunks; i++) {
       const chunk = chunks.get(i);
       if (!chunk) {
+        console.error(`Missing chunk ${i} of ${metadata.totalChunks}`);
         throw new Error(`Missing chunk ${i}`);
       }
-      
-      // Remove data URL prefix from chunks after the first
-      if (i === 0) {
-        sortedChunks.push(chunk);
-      } else {
-        const base64Data = chunk.split(',')[1];
-        sortedChunks.push(base64Data);
-      }
+      sortedChunks.push(chunk);
     }
     
-    // Combine chunks
+    // For single chunk, return as-is
     if (sortedChunks.length === 1) {
       return sortedChunks[0];
     }
     
-    const [prefix, firstData] = sortedChunks[0].split(',');
-    const combinedData = firstData + sortedChunks.slice(1).join('');
-    return `${prefix},${combinedData}`;
+    // For multiple chunks, combine them properly
+    // First chunk has the full data URL prefix
+    let result = sortedChunks[0];
+    
+    // Subsequent chunks should have their prefix removed
+    for (let i = 1; i < sortedChunks.length; i++) {
+      const chunk = sortedChunks[i];
+      // Remove the data URL prefix from subsequent chunks
+      const commaIndex = chunk.indexOf(',');
+      if (commaIndex !== -1) {
+        result += chunk.substring(commaIndex + 1);
+      } else {
+        result += chunk;
+      }
+    }
+    
+    return result;
   }
 }
