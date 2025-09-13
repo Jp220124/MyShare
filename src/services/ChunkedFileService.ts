@@ -1,5 +1,5 @@
 export class ChunkedFileService {
-  private static CHUNK_SIZE = 50000; // 50KB chunks to stay under limit
+  private static CHUNK_SIZE = 32000; // 32KB chunks for better reliability
 
   static async sendFileInChunks(
     ws: any,
@@ -84,22 +84,31 @@ export class ChunkedFileService {
       return sortedChunks[0];
     }
     
-    // For multiple chunks, combine them properly
-    // First chunk has the full data URL prefix
-    let result = sortedChunks[0];
+    // For multiple chunks, we need to extract the base64 data and combine
+    // First, get the data URL prefix from the first chunk
+    const firstChunk = sortedChunks[0];
+    const commaIndex = firstChunk.indexOf(',');
+    if (commaIndex === -1) {
+      throw new Error('Invalid data URL format in first chunk');
+    }
     
-    // Subsequent chunks should have their prefix removed
-    for (let i = 1; i < sortedChunks.length; i++) {
+    const prefix = firstChunk.substring(0, commaIndex + 1);
+    const base64Parts: string[] = [];
+    
+    // Extract base64 data from each chunk
+    for (let i = 0; i < sortedChunks.length; i++) {
       const chunk = sortedChunks[i];
-      // Remove the data URL prefix from subsequent chunks
-      const commaIndex = chunk.indexOf(',');
-      if (commaIndex !== -1) {
-        result += chunk.substring(commaIndex + 1);
+      const chunkCommaIndex = chunk.indexOf(',');
+      if (chunkCommaIndex !== -1) {
+        // Extract just the base64 part after the comma
+        base64Parts.push(chunk.substring(chunkCommaIndex + 1));
       } else {
-        result += chunk;
+        // Chunk is already pure base64
+        base64Parts.push(chunk);
       }
     }
     
-    return result;
+    // Combine all base64 parts and add the prefix
+    return prefix + base64Parts.join('');
   }
 }

@@ -119,9 +119,25 @@ export class RoomDurableObject {
             break;
             
           case 'file-start':
+            console.log(`File transfer started by ${peerId}: ${data.fileName}`);
+            // Broadcast file metadata to all other peers
+            this.broadcast({
+              ...data,
+              sender: peerId
+            }, peerId);
+            break;
+            
           case 'file-chunk':
+            // Broadcast file chunk to all other peers
+            this.broadcast({
+              ...data,
+              sender: peerId
+            }, peerId);
+            break;
+            
           case 'file-end':
-            // Broadcast file data
+            console.log(`File transfer completed by ${peerId}: ${data.fileId}`);
+            // Broadcast file completion to all other peers
             this.broadcast({
               ...data,
               sender: peerId

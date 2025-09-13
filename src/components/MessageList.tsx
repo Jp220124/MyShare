@@ -15,12 +15,24 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   };
 
   const downloadFile = (fileData: string, fileName: string) => {
-    const link = document.createElement('a');
-    link.href = fileData;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      // Validate data URL format
+      if (!fileData || !fileData.startsWith('data:')) {
+        console.error('Invalid file data format');
+        alert('File download failed: Invalid data format');
+        return;
+      }
+      
+      const link = document.createElement('a');
+      link.href = fileData;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('File download failed. Please try again.');
+    }
   };
 
   return (
