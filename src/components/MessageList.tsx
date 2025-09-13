@@ -78,13 +78,15 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                     {message.fileSize && formatFileSize(message.fileSize)}
                   </p>
                 </div>
-                {message.fileData && (
+                {message.fileData ? (
                   <button
                     onClick={() => downloadFile(message.fileData as string, message.fileName!)}
                     className="flex-shrink-0 bg-indigo-600 text-white px-3 py-1 rounded text-sm hover:bg-indigo-700"
                   >
                     Download
                   </button>
+                ) : (
+                  <span className="text-xs text-gray-500">Processing...</span>
                 )}
               </div>
             )}

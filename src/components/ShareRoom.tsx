@@ -89,8 +89,8 @@ const ShareRoom: React.FC = () => {
   const handleSendFile = async (file: File) => {
     if (!wsRef.current) return;
 
-    // Check file size - if over 1MB, use chunking
-    const MAX_DIRECT_SIZE = 1024 * 1024; // 1MB
+    // Check file size - if over 100KB, use chunking
+    const MAX_DIRECT_SIZE = 100 * 1024; // 100KB
     
     if (file.size > MAX_DIRECT_SIZE) {
       // Large file - use chunked transfer

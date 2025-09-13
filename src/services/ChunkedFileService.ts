@@ -1,5 +1,5 @@
 export class ChunkedFileService {
-  private static CHUNK_SIZE = 32000; // 32KB chunks for better reliability
+  private static CHUNK_SIZE = 16000; // 16KB chunks for maximum reliability
 
   static async sendFileInChunks(
     ws: any,

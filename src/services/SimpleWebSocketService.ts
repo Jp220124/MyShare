@@ -125,10 +125,13 @@ export class SimpleWebSocketService {
           // Reassemble and notify
           import('./ChunkedFileService').then(({ ChunkedFileService }) => {
             try {
+              console.log(`Reassembling file with ${completeFile.chunks.size} chunks`);
               const fileDataUrl = ChunkedFileService.reassembleFile(
                 completeFile.chunks,
                 completeFile.metadata
               );
+              
+              console.log(`File reassembled, data URL length: ${fileDataUrl.length}`);
               
               const message: Message = {
                 id: data.fileId,
@@ -144,6 +147,16 @@ export class SimpleWebSocketService {
               this.fileChunks.delete(data.fileId);
             } catch (error) {
               console.error('Failed to reassemble file:', error);
+              // Notify user of error
+              const errorMessage: Message = {
+                id: data.fileId,
+                type: 'text',
+                sender: 'System',
+                content: `Failed to receive file: ${completeFile.metadata.fileName}`,
+                timestamp: Date.now()
+              };
+              this.notifyMessageHandlers(errorMessage);
+              this.fileChunks.delete(data.fileId);
             }
           });
         }
