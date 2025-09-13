@@ -100,7 +100,12 @@ export class SimpleWebSocketService {
         
       case 'message':
         console.log('Message received:', data.message);
-        this.notifyMessageHandlers(data.message);
+        if (data.message && data.message.sender !== this.peerId) {
+          console.log('Broadcasting message from:', data.message.sender);
+          this.notifyMessageHandlers(data.message);
+        } else {
+          console.log('Skipping own message or invalid message');
+        }
         break;
         
       case 'file-start':
@@ -194,8 +199,15 @@ export class SimpleWebSocketService {
 
   sendMessage(message: any) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const messageStr = JSON.stringify(message);
-      console.log('Sending message:', messageStr);
+      // Ensure room and peer info is included
+      const fullMessage = {
+        ...message,
+        roomId: this.roomId,
+        peerId: this.peerId,
+        timestamp: message.timestamp || Date.now()
+      };
+      const messageStr = JSON.stringify(fullMessage);
+      console.log('Sending message:', fullMessage);
       this.ws.send(messageStr);
     } else {
       console.error('WebSocket is not connected. State:', this.ws?.readyState);
