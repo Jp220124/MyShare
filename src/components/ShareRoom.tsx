@@ -5,6 +5,7 @@ import type { Message, Peer } from '../types';
 import { SimpleWebSocketService } from '../services/SimpleWebSocketService';
 import { WebRTCService } from '../services/WebRTCService';
 import { HybridFileService } from '../services/HybridFileService';
+import { CompressedTransferService } from '../services/CompressedTransferService';
 import { generatePeerId } from '../utils/generateRoomId';
 import MessageList from './MessageList';
 import FileUpload from './FileUpload';
@@ -18,6 +19,7 @@ const ShareRoom: React.FC = () => {
   const [showQR, setShowQR] = useState(false);
   const [connected, setConnected] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string>('');
+  const [useCompression, setUseCompression] = useState(true); // Default to compressed transfer
   const roomUrl = `${window.location.origin}/room/${roomId}`;
   
   const wsRef = useRef<SimpleWebSocketService | null>(null);
@@ -116,6 +118,42 @@ const ShareRoom: React.FC = () => {
   const handleSendFile = async (file: File) => {
     if (!wsRef.current || !hybridFileRef.current) return;
 
+    // Use compressed transfer for files between 500KB and 10MB
+    if (useCompression && file.size > 500 * 1024 && file.size < 10 * 1024 * 1024) {
+      console.log('[ShareRoom] Using compressed WebSocket transfer');
+      setTransferStatus('Compressing and sending...');
+      
+      try {
+        await CompressedTransferService.sendFileInChunks(
+          wsRef.current,
+          file,
+          roomId!,
+          peerIdRef.current,
+          (progress) => {
+            setTransferStatus(`Sending: ${Math.round(progress)}%`);
+          }
+        );
+        
+        // Update local message
+        const message: Message = {
+          id: Date.now().toString(),
+          type: file.type.startsWith('image/') ? 'image' : 'file',
+          sender: 'You',
+          fileName: file.name,
+          fileSize: file.size,
+          content: '✓ Sent via compressed transfer',
+          timestamp: Date.now()
+        };
+        setMessages(prev => [...prev, message]);
+        setTransferStatus('');
+        return;
+      } catch (error) {
+        console.error('[ShareRoom] Compressed transfer failed:', error);
+        setTransferStatus('');
+        // Fall through to hybrid transfer
+      }
+    }
+    
     // Warn for large files
     if (file.size > 5 * 1024 * 1024) { // 5MB
       const sizeMB = (file.size / 1024 / 1024).toFixed(2);

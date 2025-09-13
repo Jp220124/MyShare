@@ -1,6 +1,7 @@
 import { WebRTCService } from './WebRTCService';
 import { R2Service } from './R2Service';
 import { FileTransferService } from './FileTransferService';
+import { CompressedTransferService } from './CompressedTransferService';
 
 export interface FileTransferResult {
   success: boolean;

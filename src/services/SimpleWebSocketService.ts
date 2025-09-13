@@ -108,6 +108,38 @@ export class SimpleWebSocketService {
         }
         break;
         
+      case 'file-metadata':
+        console.log('File metadata received:', data);
+        import('./CompressedTransferService').then(({ CompressedTransferService }) => {
+          CompressedTransferService.handleFileMetadata(data);
+        });
+        break;
+        
+      case 'file-chunk':
+        import('./CompressedTransferService').then(({ CompressedTransferService }) => {
+          CompressedTransferService.handleFileChunk(data);
+        });
+        break;
+        
+      case 'file-complete':
+        console.log('File complete:', data.fileId);
+        import('./CompressedTransferService').then(({ CompressedTransferService }) => {
+          const file = CompressedTransferService.handleFileComplete(data);
+          if (file) {
+            const message: Message = {
+              id: data.fileId,
+              type: file.fileType.startsWith('image/') ? 'image' : 'file',
+              sender: data.peerId,
+              fileName: file.fileName,
+              fileSize: file.fileSize,
+              fileData: file.fileData,
+              timestamp: Date.now()
+            };
+            this.notifyMessageHandlers(message);
+          }
+        });
+        break;
+        
       case 'file-start':
         console.log('File transfer starting:', data);
         this.fileChunks.set(data.fileId, {
