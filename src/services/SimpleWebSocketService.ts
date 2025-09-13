@@ -16,8 +16,9 @@ export class SimpleWebSocketService {
   constructor(roomId: string, peerId: string) {
     this.roomId = roomId;
     this.peerId = peerId;
-    // Use the deployed Worker URL
-    this.wsUrl = import.meta.env.VITE_WS_URL || 'wss://webshare-final.priyanshukumarmaurya786.workers.dev';
+    // Always use the final worker URL
+    this.wsUrl = 'wss://webshare-final.priyanshukumarmaurya786.workers.dev';
+    console.log('Using WebSocket URL:', this.wsUrl);
   }
 
   connect() {
