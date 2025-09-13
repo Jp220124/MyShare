@@ -1,0 +1,23 @@
+name = "webshare-r2-worker"
+main = "r2-worker.js"
+compatibility_date = "2024-01-01"
+
+# R2 bucket binding
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "webshare-files"
+
+# KV namespace for file metadata
+[[kv_namespaces]]
+binding = "FILE_METADATA"
+id = "your-kv-namespace-id"
+preview_id = "your-kv-preview-id"
+
+# Scheduled trigger for auto-cleanup (runs daily at 2 AM UTC)
+[triggers]
+crons = ["0 2 * * *"]
+
+# Environment variables (optional)
+[vars]
+MAX_FILE_SIZE = "104857600" # 100MB in bytes
+FILE_EXPIRY_HOURS = "24"

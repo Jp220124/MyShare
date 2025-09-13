@@ -1,17 +1,32 @@
+import { P2PFileTransfer, ReceivedFile } from './P2PFileTransfer';
+
 export class WebRTCService {
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private dataChannels: Map<string, RTCDataChannel> = new Map();
+  private connectionStates: Map<string, string> = new Map();
   private ws: any; // WebSocketService instance
   private localPeerId: string;
+  private p2pFileTransfer: P2PFileTransfer;
+  private onFileReceivedCallback?: (file: ReceivedFile) => void;
   
   private readonly iceServers = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
   ];
 
   constructor(ws: any, localPeerId: string) {
     this.ws = ws;
     this.localPeerId = localPeerId;
+    this.p2pFileTransfer = new P2PFileTransfer();
+    
+    // Set up file received callback
+    this.p2pFileTransfer.onFileReceivedCallback((file) => {
+      if (this.onFileReceivedCallback) {
+        this.onFileReceivedCallback(file);
+      }
+    });
     
     // Listen for WebRTC signaling messages
     ws.onMessage((message: any) => {
@@ -26,8 +41,15 @@ export class WebRTCService {
   }
 
   async createConnection(remotePeerId: string): Promise<RTCDataChannel> {
+    console.log(`[WebRTC] Creating connection to ${remotePeerId}`);
     const pc = new RTCPeerConnection({ iceServers: this.iceServers });
     this.peerConnections.set(remotePeerId, pc);
+    
+    // Monitor connection state
+    pc.onconnectionstatechange = () => {
+      console.log(`[WebRTC] Connection state with ${remotePeerId}: ${pc.connectionState}`);
+      this.connectionStates.set(remotePeerId, pc.connectionState);
+    };
 
     // Create data channel
     const dataChannel = pc.createDataChannel('fileTransfer');
@@ -114,22 +136,28 @@ export class WebRTCService {
   }
 
   private setupDataChannel(dataChannel: RTCDataChannel, peerId: string) {
+    // Set binary type for file transfers
+    dataChannel.binaryType = 'arraybuffer';
+    
     dataChannel.onopen = () => {
-      console.log(`Data channel opened with ${peerId}`);
+      console.log(`[WebRTC] Data channel opened with ${peerId}`);
+      this.connectionStates.set(peerId, 'connected');
     };
 
     dataChannel.onclose = () => {
-      console.log(`Data channel closed with ${peerId}`);
+      console.log(`[WebRTC] Data channel closed with ${peerId}`);
       this.dataChannels.delete(peerId);
+      this.connectionStates.set(peerId, 'disconnected');
     };
 
     dataChannel.onerror = (error) => {
-      console.error(`Data channel error with ${peerId}:`, error);
+      console.error(`[WebRTC] Data channel error with ${peerId}:`, error);
+      this.connectionStates.set(peerId, 'error');
     };
 
     dataChannel.onmessage = (event) => {
-      // Handle incoming data
-      this.handleDataChannelMessage(event.data, peerId);
+      // Handle incoming data through P2PFileTransfer
+      this.p2pFileTransfer.handleMessage(event.data, peerId);
     };
   }
 
@@ -157,48 +185,35 @@ export class WebRTCService {
     return false;
   }
 
-  async sendFileToPeer(peerId: string, file: File) {
+  async sendFileToPeer(
+    peerId: string, 
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<boolean> {
     const dataChannel = this.dataChannels.get(peerId);
     if (!dataChannel || dataChannel.readyState !== 'open') {
-      // Fallback to WebSocket if P2P is not available
+      console.log(`[WebRTC] DataChannel not available for ${peerId}`);
       return false;
     }
 
-    const chunkSize = 16384; // 16KB chunks
-    const reader = new FileReader();
-    
-    // Send file metadata first
-    dataChannel.send(JSON.stringify({
-      type: 'file-start',
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-    }));
+    // Use P2PFileTransfer for reliable file transfer
+    return await this.p2pFileTransfer.sendFile(dataChannel, file, onProgress);
+  }
 
-    // Read and send file in chunks
-    let offset = 0;
-    
-    const readSlice = () => {
-      const slice = file.slice(offset, offset + chunkSize);
-      reader.readAsArrayBuffer(slice);
-    };
+  // Check if P2P connection is available for a peer
+  isPeerConnected(peerId: string): boolean {
+    const dataChannel = this.dataChannels.get(peerId);
+    return dataChannel !== undefined && dataChannel.readyState === 'open';
+  }
 
-    reader.onload = (e) => {
-      if (e.target?.result && e.target.result instanceof ArrayBuffer) {
-        dataChannel.send(e.target.result);
-        offset += chunkSize;
-        
-        if (offset < file.size) {
-          readSlice();
-        } else {
-          // File transfer complete
-          dataChannel.send(JSON.stringify({ type: 'file-end' }));
-        }
-      }
-    };
+  // Get connection state for a peer
+  getConnectionState(peerId: string): string {
+    return this.connectionStates.get(peerId) || 'disconnected';
+  }
 
-    readSlice();
-    return true;
+  // Set callback for when files are received
+  onFileReceived(callback: (file: ReceivedFile) => void): void {
+    this.onFileReceivedCallback = callback;
   }
 
   disconnect() {

@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { Message, Peer } from '../types';
 import { SimpleWebSocketService } from '../services/SimpleWebSocketService';
 import { WebRTCService } from '../services/WebRTCService';
-import { ChunkedFileService } from '../services/ChunkedFileService';
+import { HybridFileService } from '../services/HybridFileService';
 import { generatePeerId } from '../utils/generateRoomId';
 import MessageList from './MessageList';
 import FileUpload from './FileUpload';
@@ -17,10 +17,12 @@ const ShareRoom: React.FC = () => {
   const [peers, setPeers] = useState<Peer[]>([]);
   const [showQR, setShowQR] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [transferStatus, setTransferStatus] = useState<string>('');
   const roomUrl = `${window.location.origin}/room/${roomId}`;
   
   const wsRef = useRef<SimpleWebSocketService | null>(null);
   const webRTCRef = useRef<WebRTCService | null>(null);
+  const hybridFileRef = useRef<HybridFileService | null>(null);
   const peerIdRef = useRef<string>(generatePeerId());
 
   useEffect(() => {
@@ -34,6 +36,28 @@ const ShareRoom: React.FC = () => {
     const webRTC = new WebRTCService(ws, peerIdRef.current);
     webRTCRef.current = webRTC;
 
+    // Initialize Hybrid File Service
+    const hybridFile = new HybridFileService();
+    hybridFile.setWebRTCService(webRTC);
+    hybridFile.onProgress((progress) => {
+      setTransferStatus(progress.status);
+    });
+    hybridFileRef.current = hybridFile;
+
+    // Set up WebRTC file received callback
+    webRTC.onFileReceived((file) => {
+      const message: Message = {
+        id: Date.now().toString(),
+        type: file.fileType.startsWith('image/') ? 'image' : 'file',
+        sender: peers.find(p => p.id === file.peerId)?.name || file.peerId,
+        fileName: file.fileName,
+        fileSize: file.fileSize,
+        fileData: file.fileData,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, message]);
+    });
+
     // Set up event handlers
     const unsubscribeMessage = ws.onMessage((message) => {
       if (message.sender !== peerIdRef.current) {
@@ -45,8 +69,10 @@ const ShareRoom: React.FC = () => {
       setPeers(updatedPeers.filter(p => p.id !== peerIdRef.current));
       
       // Try to establish P2P connections with new peers
+      // Only initiate connection if our ID is greater (to avoid both peers initiating)
       updatedPeers.forEach(peer => {
-        if (peer.id !== peerIdRef.current) {
+        if (peer.id !== peerIdRef.current && peerIdRef.current > peer.id) {
+          console.log(`[ShareRoom] Initiating P2P connection to ${peer.id}`);
           webRTC.createConnection(peer.id);
         }
       });
@@ -87,53 +113,82 @@ const ShareRoom: React.FC = () => {
   };
 
   const handleSendFile = async (file: File) => {
-    if (!wsRef.current) return;
+    if (!wsRef.current || !hybridFileRef.current) return;
 
-    // Always use chunking for consistency
+    // Create message placeholder
     const message: Message = {
       id: Date.now().toString(),
       type: file.type.startsWith('image/') ? 'image' : 'file',
       sender: 'You',
       fileName: file.name,
       fileSize: file.size,
-      content: 'Uploading file...',
+      content: 'Preparing file transfer...',
       timestamp: Date.now()
     };
     setMessages(prev => [...prev, message]);
     
     try {
-      await ChunkedFileService.sendFileInChunks(
-        wsRef.current,
-        file,
-        peerIdRef.current,
-        (progress) => {
-          console.log(`Upload progress: ${progress.toFixed(1)}%`);
-          // Update progress in UI
+      // Get the first connected peer for P2P attempt
+      const targetPeer = peers[0]?.id;
+      
+      // Show recommended method
+      const recommendedMethod = hybridFileRef.current.getRecommendedMethod(file, targetPeer);
+      console.log(`[ShareRoom] Recommended transfer method: ${recommendedMethod}`);
+      setTransferStatus(`Using ${recommendedMethod}`);
+      
+      // Use hybrid file service
+      const result = await hybridFileRef.current.sendFile(file, targetPeer);
+      
+      if (result.success) {
+        console.log(`[ShareRoom] File sent via ${result.method}`);
+        
+        // For P2P transfers, the file is sent directly
+        if (result.method === 'p2p') {
+          // Update local message to show success
           setMessages(prev => prev.map(m => 
             m.id === message.id 
-              ? { ...m, content: `Uploading... ${progress.toFixed(0)}%` }
+              ? { ...m, content: `Sent via peer-to-peer` }
+              : m
+          ));
+        } else {
+          // For other methods, send the URL through WebSocket
+          const fileMessage = {
+            id: message.id,
+            type: message.type,
+            sender: peerIdRef.current,
+            fileName: file.name,
+            fileSize: file.size,
+            fileData: result.url,
+            uploadMethod: result.method,
+            timestamp: Date.now()
+          };
+          
+          wsRef.current.sendMessage({
+            type: 'message',
+            message: fileMessage
+          });
+          
+          // Update local message with the file data
+          setMessages(prev => prev.map(m => 
+            m.id === message.id 
+              ? { ...m, fileData: result.url, content: undefined }
               : m
           ));
         }
-      );
+        
+        setTransferStatus('');
+      } else {
+        throw new Error(result.error || 'Transfer failed');
+      }
       
-      // Read file data for local display
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setMessages(prev => prev.map(m => 
-          m.id === message.id 
-            ? { ...m, fileData: e.target?.result as string, content: undefined }
-            : m
-        ));
-      };
-      reader.readAsDataURL(file);
     } catch (error) {
-      console.error('Failed to send file:', error);
+      console.error('[ShareRoom] Failed to send file:', error);
       setMessages(prev => prev.map(m => 
         m.id === message.id 
           ? { ...m, content: 'Failed to send file' }
           : m
       ));
+      setTransferStatus('');
     }
   };
 
@@ -234,12 +289,18 @@ const ShareRoom: React.FC = () => {
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <span className="text-sm">You (this device)</span>
               </div>
-              {peers.map((peer) => (
-                <div key={peer.id} className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">{peer.name}</span>
-                </div>
-              ))}
+              {peers.map((peer) => {
+                const isP2PConnected = webRTCRef.current?.isPeerConnected(peer.id) || false;
+                return (
+                  <div key={peer.id} className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${isP2PConnected ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                    <span className="text-sm">{peer.name}</span>
+                    {isP2PConnected && (
+                      <span className="text-xs text-blue-600">(P2P)</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -248,6 +309,11 @@ const ShareRoom: React.FC = () => {
             <h3 className="font-semibold text-gray-800">Share</h3>
             <FileUpload onFileSelect={handleSendFile} />
             <TextInput onSendText={handleSendText} />
+            {transferStatus && (
+              <div className="text-sm text-blue-600 animate-pulse">
+                {transferStatus}
+              </div>
+            )}
           </div>
         </div>
       </div>
