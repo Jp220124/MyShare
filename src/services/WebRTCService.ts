@@ -1,4 +1,4 @@
-import { P2PFileTransfer, ReceivedFile } from './P2PFileTransfer';
+import { P2PFileTransfer, type ReceivedFile } from './P2PFileTransfer';
 
 export class WebRTCService {
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
@@ -161,16 +161,6 @@ export class WebRTCService {
     };
   }
 
-  private handleDataChannelMessage(data: any, peerId: string) {
-    try {
-      const message = JSON.parse(data);
-      // Process the message based on type
-      console.log('Received via P2P:', message);
-    } catch (error) {
-      // Handle binary data for file transfers
-      console.log('Received binary data from', peerId);
-    }
-  }
 
   sendDataToPeer(peerId: string, data: any) {
     const dataChannel = this.dataChannels.get(peerId);

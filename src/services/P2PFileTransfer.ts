@@ -143,7 +143,7 @@ export class P2PFileTransfer {
     this.fileReceivers.set(metadata.fileId, receiver);
   }
 
-  private prepareForChunk(header: any, peerId: string): void {
+  private prepareForChunk(header: any, _peerId: string): void {
     const receiver = this.fileReceivers.get(header.fileId);
     if (receiver) {
       receiver.expectedChunkIndex = header.chunkIndex;
