@@ -61,28 +61,27 @@ export class FileTransferService {
   
   // Main method - decides which approach to use
   static async shareFile(file: File): Promise<{ method: string; url: string }> {
-    // For small files, use data URL
-    if (file.size < 100 * 1024) { // 100KB
+    // For files up to 500KB, use data URL directly (increased limit)
+    // Most browsers can handle data URLs up to several MB
+    if (file.size < 500 * 1024) { // 500KB
       const dataUrl = await this.fileToDataURL(file);
       return { method: 'dataurl', url: dataUrl };
     }
     
-    // For larger files, try external hosting
-    try {
-      // Try 0x0.st first (more reliable, larger limit)
-      const url = await this.uploadTo0x0(file);
-      return { method: '0x0.st', url };
-    } catch (error) {
-      // Fallback to file.io
-      try {
-        const url = await this.uploadToFileIO(file);
-        return { method: 'file.io', url };
-      } catch (error) {
-        // Last resort - try data URL even for large files
-        console.warn('External upload failed, using data URL');
-        const dataUrl = await this.fileToDataURL(file);
-        return { method: 'dataurl', url: dataUrl };
-      }
+    // For larger files, still try data URL but warn about size
+    // Modern browsers can typically handle data URLs up to 2-5MB
+    if (file.size < 2 * 1024 * 1024) { // 2MB
+      console.warn(`File size is ${(file.size / 1024 / 1024).toFixed(2)}MB. Using data URL, but performance may be affected.`);
+      const dataUrl = await this.fileToDataURL(file);
+      return { method: 'dataurl-large', url: dataUrl };
     }
+    
+    // For very large files, inform user about limitations
+    console.error(`File size is ${(file.size / 1024 / 1024).toFixed(2)}MB. This exceeds the recommended limit.`);
+    console.log('Consider using R2 service or P2P transfer for large files.');
+    
+    // Still attempt data URL as last resort
+    const dataUrl = await this.fileToDataURL(file);
+    return { method: 'dataurl-xlarge', url: dataUrl };
   }
 }

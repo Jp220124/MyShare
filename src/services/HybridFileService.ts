@@ -148,7 +148,7 @@ export class HybridFileService {
   // Get transfer method priority for a file
   getRecommendedMethod(file: File, peerId?: string): string {
     // For small files, data URL is fastest
-    if (file.size < 100 * 1024) {
+    if (file.size < 500 * 1024) {
       return 'Direct transfer (small file)';
     }
 
@@ -162,11 +162,11 @@ export class HybridFileService {
       return 'Cloud storage (reliable)';
     }
 
-    // External services as fallback
-    if (file.size < 50 * 1024 * 1024) {
-      return 'External service (fallback)';
+    // Data URL for medium files
+    if (file.size < 2 * 1024 * 1024) {
+      return 'Direct transfer (medium file)';
     }
 
-    return 'File too large for transfer';
+    return 'Direct transfer (large file - may be slow)';
   }
 }

@@ -115,6 +115,14 @@ const ShareRoom: React.FC = () => {
   const handleSendFile = async (file: File) => {
     if (!wsRef.current || !hybridFileRef.current) return;
 
+    // Warn for large files
+    if (file.size > 5 * 1024 * 1024) { // 5MB
+      const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+      if (!confirm(`This file is ${sizeMB}MB. Large files may take longer to transfer and could fail on some devices. Continue?`)) {
+        return;
+      }
+    }
+
     // Create message placeholder
     const message: Message = {
       id: Date.now().toString(),
