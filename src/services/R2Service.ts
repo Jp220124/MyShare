@@ -8,40 +8,31 @@ export class R2Service {
     }
 
     try {
-      // Get presigned URL from worker
-      const presignedResponse = await fetch(`${this.WORKER_URL}/get-upload-url`, {
+      // Create FormData
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Upload directly to worker
+      const response = await fetch(`${this.WORKER_URL}/upload`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-        }),
+        body: formData,
       });
 
-      if (!presignedResponse.ok) {
-        throw new Error('Failed to get upload URL');
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Upload failed: ${error}`);
       }
 
-      const { uploadUrl, downloadUrl, fileId } = await presignedResponse.json();
-
-      // Upload file directly to R2 using presigned URL
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload file to R2');
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Upload failed');
       }
 
-      console.log(`[R2] File uploaded successfully: ${file.name} (ID: ${fileId})`);
-      return downloadUrl;
+      console.log(`[R2] File uploaded successfully: ${file.name}`);
+      console.log(`[R2] Download URL: ${result.url}`);
+      
+      return result.url;
 
     } catch (error) {
       console.error('[R2] Upload failed:', error);

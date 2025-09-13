@@ -1,0 +1,7 @@
+name = "webshare-r2"
+main = "simple-r2-worker.js"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "webshare-files"

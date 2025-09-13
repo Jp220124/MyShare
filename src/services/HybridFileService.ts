@@ -32,40 +32,9 @@ export class HybridFileService {
   async sendFile(file: File, peerId?: string): Promise<FileTransferResult> {
     console.log(`[Hybrid] Starting file transfer for ${file.name} (${file.size} bytes)`);
 
-    // Strategy 1: Try P2P if peer is connected
-    if (peerId && this.webRTC?.isPeerConnected(peerId)) {
-      console.log(`[Hybrid] Attempting P2P transfer to ${peerId}`);
-      
-      try {
-        const success = await this.webRTC.sendFileToPeer(
-          peerId, 
-          file,
-          (progress) => {
-            if (this.onProgressCallback) {
-              this.onProgressCallback({
-                method: 'p2p',
-                progress,
-                status: `Sending via P2P: ${Math.round(progress)}%`
-              });
-            }
-          }
-        );
-
-        if (success) {
-          console.log(`[Hybrid] P2P transfer successful`);
-          return {
-            success: true,
-            method: 'p2p'
-          };
-        }
-      } catch (error) {
-        console.warn('[Hybrid] P2P transfer failed:', error);
-      }
-    }
-
-    // Strategy 2: Try R2 if configured and file is under 100MB
-    if (R2Service.isConfigured() && file.size < 100 * 1024 * 1024) {
-      console.log(`[Hybrid] Attempting R2 upload`);
+    // Strategy 1: Try R2 FIRST if configured (most reliable)
+    if (R2Service.isConfigured()) {
+      console.log(`[Hybrid] Attempting R2 upload (primary method)`);
       
       try {
         if (this.onProgressCallback) {
@@ -97,8 +66,39 @@ export class HybridFileService {
       }
     }
 
-    // Strategy 3: Fall back to external services or data URL
-    console.log(`[Hybrid] Falling back to external services`);
+    // Strategy 2: Try P2P if peer is connected
+    if (peerId && this.webRTC?.isPeerConnected(peerId)) {
+      console.log(`[Hybrid] Attempting P2P transfer to ${peerId}`);
+      
+      try {
+        const success = await this.webRTC.sendFileToPeer(
+          peerId, 
+          file,
+          (progress) => {
+            if (this.onProgressCallback) {
+              this.onProgressCallback({
+                method: 'p2p',
+                progress,
+                status: `Sending via P2P: ${Math.round(progress)}%`
+              });
+            }
+          }
+        );
+
+        if (success) {
+          console.log(`[Hybrid] P2P transfer successful`);
+          return {
+            success: true,
+            method: 'p2p'
+          };
+        }
+      } catch (error) {
+        console.warn('[Hybrid] P2P transfer failed:', error);
+      }
+    }
+
+    // Strategy 3: Fall back to data URL
+    console.log(`[Hybrid] Falling back to data URL`);
     
     try {
       if (this.onProgressCallback) {
