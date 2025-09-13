@@ -1,5 +1,5 @@
 export class ChunkedFileService {
-  private static CHUNK_SIZE = 16000; // 16KB chunks for maximum reliability
+  private static CHUNK_SIZE = 8192; // 8KB chunks for better reliability with WebSocket limits
 
   static async sendFileInChunks(
     ws: any,
@@ -12,6 +12,7 @@ export class ChunkedFileService {
     const totalChunks = Math.ceil(file.size / this.CHUNK_SIZE);
     
     // Send file metadata first
+    console.log(`Starting file transfer: ${file.name} (${file.size} bytes, ${totalChunks} chunks)`);
     ws.sendMessage({
       type: 'file-start',
       fileId,
@@ -22,7 +23,7 @@ export class ChunkedFileService {
       sender: peerId,
     });
 
-    // Read and send file in chunks
+    // Read and send file in chunks as base64 (without data URL prefix)
     for (let i = 0; i < totalChunks; i++) {
       const start = i * this.CHUNK_SIZE;
       const end = Math.min(start + this.CHUNK_SIZE, file.size);
@@ -31,13 +32,19 @@ export class ChunkedFileService {
       await new Promise<void>((resolve, reject) => {
         reader.onload = (e) => {
           if (e.target?.result) {
+            // Extract just the base64 part from the data URL
+            const dataUrl = e.target.result as string;
+            const base64Data = dataUrl.split(',')[1] || dataUrl;
+            
             ws.sendMessage({
               type: 'file-chunk',
               fileId,
               chunkIndex: i,
-              chunkData: e.target.result as string,
+              chunkData: base64Data, // Send only base64 data
               sender: peerId,
             });
+            
+            console.log(`Sent chunk ${i + 1}/${totalChunks} (${base64Data.length} bytes)`);
             
             if (onProgress) {
               onProgress((i + 1) / totalChunks * 100);
@@ -53,8 +60,8 @@ export class ChunkedFileService {
         reader.readAsDataURL(chunk);
       });
       
-      // Small delay between chunks to avoid overwhelming
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Delay between chunks to avoid overwhelming WebSocket
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     // Send completion message
@@ -79,36 +86,16 @@ export class ChunkedFileService {
       sortedChunks.push(chunk);
     }
     
-    // For single chunk, return as-is
-    if (sortedChunks.length === 1) {
-      return sortedChunks[0];
-    }
+    // Since we're now sending pure base64 chunks, we need to reconstruct the data URL
+    // Combine all base64 chunks
+    const combinedBase64 = sortedChunks.join('');
     
-    // For multiple chunks, we need to extract the base64 data and combine
-    // First, get the data URL prefix from the first chunk
-    const firstChunk = sortedChunks[0];
-    const commaIndex = firstChunk.indexOf(',');
-    if (commaIndex === -1) {
-      throw new Error('Invalid data URL format in first chunk');
-    }
+    // Create the data URL with the appropriate MIME type from metadata
+    const mimeType = metadata.fileType || 'application/octet-stream';
+    const dataUrl = `data:${mimeType};base64,${combinedBase64}`;
     
-    const prefix = firstChunk.substring(0, commaIndex + 1);
-    const base64Parts: string[] = [];
+    console.log(`Reassembled file: ${metadata.fileName}, MIME: ${mimeType}, size: ${dataUrl.length}`);
     
-    // Extract base64 data from each chunk
-    for (let i = 0; i < sortedChunks.length; i++) {
-      const chunk = sortedChunks[i];
-      const chunkCommaIndex = chunk.indexOf(',');
-      if (chunkCommaIndex !== -1) {
-        // Extract just the base64 part after the comma
-        base64Parts.push(chunk.substring(chunkCommaIndex + 1));
-      } else {
-        // Chunk is already pure base64
-        base64Parts.push(chunk);
-      }
-    }
-    
-    // Combine all base64 parts and add the prefix
-    return prefix + base64Parts.join('');
+    return dataUrl;
   }
 }

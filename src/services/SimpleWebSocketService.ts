@@ -112,10 +112,13 @@ export class SimpleWebSocketService {
         break;
         
       case 'file-chunk':
-        console.log(`File chunk received: ${data.chunkIndex}`);
         const fileData = this.fileChunks.get(data.fileId);
         if (fileData) {
           fileData.chunks.set(data.chunkIndex, data.chunkData);
+          const totalChunks = fileData.metadata.totalChunks || 0;
+          console.log(`File chunk ${data.chunkIndex + 1}/${totalChunks} received for ${fileData.metadata.fileName}`);
+        } else {
+          console.warn(`Received chunk for unknown file: ${data.fileId}`);
         }
         break;
         
